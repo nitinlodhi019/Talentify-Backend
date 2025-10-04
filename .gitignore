@@ -1,0 +1,8 @@
+# Remove __pycache__ from Git
+git rm -r --cached __pycache__
+
+# Remove .env from Git
+git rm --cached .env
+
+# Remove uploads (if already tracked)
+git rm -r --cached uploads
