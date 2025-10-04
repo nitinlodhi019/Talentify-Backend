@@ -1,10 +1,8 @@
-# text_processor.py
 import re
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 
-# Download NLTK data if not already present
 try:
     stopwords.words('english')
 except LookupError:
@@ -37,9 +35,6 @@ def preprocess_text(text):
 
 def extract_skills_from_text(text):
     # This is a very basic rule-based skill extraction.
-    # For a real application, you'd use a pre-trained NER model (e.g., SpaCy's 'en_core_web_lg' or a custom one)
-    # or a comprehensive skill dictionary.
-
     # Expanded and refined common skills list
     common_skills = [
         "python", "java", "javascript", "react", "node.js", "sql", "aws", "docker",

@@ -1,4 +1,3 @@
-# app.py (main Flask application file)
 from flask import Flask, request, jsonify, send_from_directory, make_response, render_template
 from flask_cors import CORS
 import os
@@ -10,19 +9,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 import random
 from email.message import EmailMessage
-from dotenv import load_dotenv # Import load_dotenv
-from supabase import create_client, Client # Import Supabase client
+from dotenv import load_dotenv
+from supabase import create_client, Client
 from mimetypes import guess_type
 
 # Load environment variables from .env file
 load_dotenv()
-print("Loaded ENV:")
-print("SUPABASE_URL:", os.environ.get("SUPABASE_URL"))
-print("SMTP_USER:", os.environ.get("SMTP_USER"))
 
-
-# Import your NLP processing modules (assuming these exist)
-# Ensure these modules are available in your Render environment
 from text_extractor import extract_text_from_file
 from text_processor import preprocess_text, \
     extract_skills_from_text, categorize_resume
@@ -32,13 +25,11 @@ from resume_matcher import calculate_match_score_enhanced
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
-# --- Database (Supabase Integration) ---
+# === Database Integration ===
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    # For local development, you might want to print a warning instead of raising an error
-    # raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set.")
     print("WARNING: SUPABASE_URL and SUPABASE_KEY environment variables are not set. Supabase features will not work.")
     # Set dummy values for local testing if you don't have Supabase set up
     SUPABASE_URL = "http://localhost:8000"
@@ -48,15 +39,14 @@ try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
     print(f"Could not connect to Supabase: {e}. Supabase features will be disabled.")
-    supabase = None # Disable Supabase if connection fails
+    supabase = None
 
 
 # In-memory dbs for temporary session data
 resumes_db = {}  # Stores processed resume data and original file path
-screening_results_db = {}  # Stores results of the *last* screening operation
+screening_results_db = {}  # Stores results of the last screening operation
 job_requirements_db = {} # Stores job requirements temporarily for the current session
 
-# --- Configuration ---
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -67,15 +57,11 @@ HF_API_KEY = os.environ.get("HF_API_KEY")
 if not HF_API_KEY:
     print("WARNING: HF_API_KEY environment variable not set. Hugging Face LLM features will be disabled.")
 
-
-# --- Helper Functions ---
 def generate_id():
     return str(uuid.uuid4())
 
-
 def generate_otp():
     return str(random.randint(100000, 999999))
-
 
 def send_otp_email(to_email, otp):
     from email.mime.multipart import MIMEMultipart
@@ -94,7 +80,6 @@ def send_otp_email(to_email, otp):
     msg["From"] = sender_email
     msg["To"] = to_email
 
-    # Plain text fallback
     text = f"""\
 Hi,
 
@@ -108,7 +93,6 @@ Thanks,
 Resume Screening Team
 """
 
-    # HTML version
     html = f"""\
 <html>
   <body style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px;">
@@ -129,7 +113,7 @@ Resume Screening Team
 </html>
 """
 
-    # Attach plain and HTML parts
+    #attach plain and html part
     part1 = MIMEText(text, "plain")
     part2 = MIMEText(html, "html")
     msg.attach(part1)
@@ -144,8 +128,7 @@ Resume Screening Team
     except Exception as e:
         print(f"❌ Failed to send OTP email to {to_email}: {e}")
 
-
-# --- API Endpoints ---
+#===API endpoints===
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
@@ -457,12 +440,6 @@ def screen_resumes():
     job_id = data.get('job_id')
     resume_ids = data.get('resume_ids')
 
-    # --- DEBUGGING STEP 1 ---
-    #print(f"--- Screening Resumes for Job ID: {job_id} ---")
-    #print(f"Received Resume IDs: {resume_ids}")
-    #print(f"Current Resumes in DB: {list(resumes_db.keys())}")
-    # -------------------------
-
     # Fetch job requirements from in-memory storage
     job_req = job_requirements_db.get(job_id)
 
@@ -479,56 +456,43 @@ def screen_resumes():
 
     for resume_id in resume_ids:
         if resume_id not in resumes_db:
-            # --- DEBUGGING STEP 2 ---
-            #print(f"WARNING: Resume ID {resume_id} not found in resumes_db. Skipping.")
-            # -------------------------
             continue
 
         resume_data = resumes_db[resume_id]
         resume_processed_text = resume_data['processed_text']
         resume_extracted_skills = resume_data['extracted_skills']
-        resume_categorized_field = resume_data['categorized_field'] # New field
-        # --- DEBUGGING STEP 3 ---
-        #print(f"Processing Resume: {resume_data.get('filename')}")
-        # -------------------------
+        resume_categorized_field = resume_data['categorized_field']
 
         # Call the enhanced match score function
         match_score, matched_skills = calculate_match_score_enhanced(
             job_description_text,
             required_skills,
-            experience_required, # Pass new field
+            experience_required,
             resume_processed_text,
             resume_extracted_skills,
-            HF_API_KEY # Pass Hugging Face API Key
+            HF_API_KEY
         )
 
         department_match_factor = 1.0
-        # Check if required_department is present in the resume's processed text
         if required_department and required_department.lower() in resume_processed_text.lower():
-            department_match_factor = 1.05 # Apply a small boost for department match
+            department_match_factor = 1.05
 
         final_score = int(match_score * department_match_factor)
-        final_score = min(final_score, 100) # Cap score at 100
-        # --- DEBUGGING STEP 4 ---
-        #print(f"Calculated Score for {resume_data.get('filename')}: {final_score}")
-        # -------------------------
+        final_score = min(final_score, 100)
         screening_results_db[resume_id] = {
             'job_id': job_id,
             'resume_id': resume_id,
             'filename': resume_data['filename'],
             'filepath': resume_data['filepath'],
-            'raw_text': resume_data['raw_text'],  # Include raw text for view
+            'raw_text': resume_data['raw_text'],
             'match_score': final_score,
             'matched_skills': matched_skills,
-            'department': required_department,  # Include department in results for display
-            'categorized_field': resume_categorized_field  # Include categorized field
+            'department': required_department,
+            'experience_level': experience_required,
+            'categorized_field': resume_categorized_field
         }
         results.append(screening_results_db[resume_id])
-        # --- DEBUGGING STEP 5 ---
-        #print(f"--- Final Screening Results to be Sent: {results} ---")
-        # -------------------------
     return jsonify({"message": "Screening complete", "results": results}), 200
-
 
 @app.route('/api/dashboard_data', methods=['GET'])
 def get_dashboard_data():
@@ -549,23 +513,20 @@ def get_dashboard_data():
             'matchedSkills': res['matched_skills'],
             'department': res.get('department', 'N/A'),
             'category': res.get('categorized_field', 'Uncategorized'),
+            'experienceLevel': res.get('experience_level', 'Not Specified'),
             'shortlisted': False
         })
 
     return jsonify(formatted_results), 200
 
-
 @app.route('/api/resume/<resume_id>', methods=['GET'])
 def get_resume_raw_text(resume_id):
     if resume_id in resumes_db:
-        # IMPORTANT: The frontend expects a 'content' field, not 'raw_text'.
         return jsonify({"content": resumes_db[resume_id]['raw_text']}), 200
     return jsonify({"message": "Resume not found"}), 404
 
 @app.route('/api/download_all_resumes/<job_id>', methods=['GET'])
 def download_all_resumes_for_job(job_id):
-    # This logic assumes you want to download all resumes associated with a screening,
-    # not just the filtered ones.
     resumes_to_download = []
     for resume_id, result in screening_results_db.items():
         if result['job_id'] == job_id:
@@ -595,18 +556,13 @@ def download_all_resumes_for_job(job_id):
 def download_resume_file():
     data = request.json
     unique_filename_on_server = data.get('filepath')
-
-    # You can still get the original filename from resumes_db if it exists,
-    # but it's better to get it from the frontend too for statelessness.
-    # For now, let's just use the unique name if original is not available.
-    original_filename = unique_filename_on_server.split('_', 1)[-1]  # A simple way to get original name
+    original_filename = unique_filename_on_server.split('_', 1)[-1]
 
     if not unique_filename_on_server:
         return jsonify({"message": "Filepath is required"}), 400
 
     full_filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename_on_server)
 
-    # Security check: Ensure the file is within the UPLOAD_FOLDER
     if os.path.exists(full_filepath) and os.path.abspath(os.path.dirname(full_filepath)) == os.path.abspath(
             app.config['UPLOAD_FOLDER']):
         mimetype, _ = guess_type(original_filename)
@@ -668,14 +624,9 @@ def email_verified_success():
 
 @app.route('/<path:path>')
 def catch_all(path):
-    # This route is a fallback and might catch requests for static files if not configured correctly
-    # For Render, ensure static files are served by the web server (e.g., Nginx) or Flask's static handler
     return 'Page not found', 404
 
-
 if __name__ == "__main__":
-    # Use environment variable for PORT, default to 5000
     port = int(os.environ.get("PORT", 5000))
-    # Bind to 0.0.0.0 for Render deployment
     app.run(debug=True, host='0.0.0.0', port=port)
 
