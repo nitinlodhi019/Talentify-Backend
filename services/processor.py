@@ -34,8 +34,6 @@ def preprocess_text(text):
 
 
 def extract_skills_from_text(text):
-    # This is a very basic rule-based skill extraction.
-    # Expanded and refined common skills list
     common_skills = [
         "python", "java", "javascript", "react", "node.js", "sql", "aws", "docker",
         "kubernetes", "machine learning", "data analysis", "project management",
@@ -80,7 +78,7 @@ def extract_skills_from_text(text):
     for skill in common_skills:
         # Use word boundaries to avoid partial matches (e.g., 'hr' matching 'shred')
         # Added more robust regex for common variations (e.g., "node js", "node.js")
-        if re.search(r'\b' + re.escape(skill).replace('\.', '[\.\s]?') + r'\b', processed_text):
+        if re.search(r'\b' + re.escape(skill).replace(r'\.', r'[\.\s]?') + r'\b', processed_text):
             found_skills.append(skill.replace('.', ''))  # Clean up for display
 
     return list(set(found_skills))  # Return unique skills
