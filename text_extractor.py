@@ -31,4 +31,3 @@ def extract_text_from_file(filepath):
         return extract_text_from_docx(filepath)
     else:
         return ""
-

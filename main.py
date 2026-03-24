@@ -1,56 +1,40 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import shutil
-import time
 
+from session_store import cleanup_old_sessions
 from routers import auth, screening
 
-app = FastAPI()
+app = FastAPI(title="AI Resume Screener API")
 
-# ==========================
-# 🌍 CORS CONFIG
-# ==========================
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Change to frontend URL later
+    allow_origins=[
+        FRONTEND_URL,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ==========================
-# 📌 REGISTER ROUTERS
-# ==========================
-
 app.include_router(auth.router, prefix="/api")
 app.include_router(screening.router, prefix="/api")
 
-# ==========================
-# 🧹 CLEANUP OLD SESSIONS
-# ==========================
-
-UPLOAD_BASE = "uploads"
 
 @app.on_event("startup")
-async def cleanup_old_sessions():
-    if not os.path.exists(UPLOAD_BASE):
-        return
+async def on_startup():
+    cleanup_old_sessions()
 
-    for folder in os.listdir(UPLOAD_BASE):
-        folder_path = os.path.join(UPLOAD_BASE, folder)
-
-        if os.path.isdir(folder_path):
-            created_time = os.path.getctime(folder_path)
-            # delete if older than 1 hour
-            if time.time() - created_time > 3600:
-                shutil.rmtree(folder_path)
-
-# ==========================
-# ROOT ROUTE
-# ==========================
 
 @app.get("/")
 def root():
     return {"message": "AI Resume Screener Backend Running 🚀"}
+
+
+@app.get("/success")
+def email_verified_success():
+    return "✅ Email verified successfully. You can now return to your app and login."
