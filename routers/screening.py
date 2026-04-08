@@ -83,11 +83,6 @@ load_dotenv()
 
 router = APIRouter()
 
-HF_API_KEY = os.environ.get("HF_API_KEY")
-if not HF_API_KEY:
-    print("WARNING: HF_API_KEY not set. Hugging Face LLM features will be disabled.")
-
-
 # ── Session ID dependency helper ─────────────────────────────────────────────
 
 def require_session(x_session_id: str = Header(..., alias="x-session-id")) -> str:
@@ -235,7 +230,6 @@ def screen_resumes(
             experience_required,
             resume_processed_text,
             resume_extracted_skills,
-            HF_API_KEY,
         )
 
         department_match_factor = 1.0
